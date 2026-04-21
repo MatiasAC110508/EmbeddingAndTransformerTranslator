@@ -1,3 +1,4 @@
+import prisma from "@/src/lib/db/prisma";
 import { registerSchema } from "@/src/lib/validations/auth";
 import { hashPassword } from "@/src/lib/validations/hash";
 
@@ -15,16 +16,34 @@ export async function POST(req: Request) {
 
         const { email, password } = parsed.data;
 
-        const hashedPassword = await hashPassword(password);
-
-        console.log({
-            email, 
-            password: hashPassword,
+        // 1. Verify that the user already exists
+        const existingUser = await prisma.user.findUnique({
+            where: { email }
         });
 
-        return Response.json({ ok: true });
+        if (existingUser) {
+            return Response.json({ error: "User already exists" }, { status: 400 });
+        }
+
+        // 2. Hash the password
+        const hashedPassword = await hashPassword(password);
+
+        // 3. Save data in the DB
+        const user = await prisma.user.create({
+            data: {
+                email,
+                password: hashedPassword
+            }
+        });
+
+        return Response.json({ ok: true, userId: user.id }, { status:201 });
         
-    } catch (error) {
-        return Response.json({ error: "Internal Server Error" }, { status: 500 });
-    }
+        } catch (error: any) {
+            console.error("DEBUG ERROR:", error);
+            return Response.json({ 
+                error: "Explotó el backend", 
+                message: error.message,
+                code: error.code // Los códigos PXXXX de Prisma son oro puro para debuguear
+            }, { status: 500 });
+        }
 }
