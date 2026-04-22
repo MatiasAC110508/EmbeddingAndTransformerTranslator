@@ -1,34 +1,58 @@
-const HF_API = "https://api-inference.huggingface.co/models";
-const HF_TOKEN = process.env.HUGGINGFACE_TOKEN; // opcional pero evita rate limits
+import { pipeline } from "@xenova/transformers";
 
-async function hfPost(model: string, inputs: string) {
-  const res = await fetch(`${HF_API}/${model}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(HF_TOKEN && { Authorization: `Bearer ${HF_TOKEN}` }),
-    },
-    body: JSON.stringify({ inputs }),
-  });
-  if (!res.ok) throw new Error(`HF error: ${res.status}`);
-  return res.json();
+type ClassificationResult = {
+  label: string;
+  score: number;
+};
+
+let classifierPromise: Promise<(input: string) => Promise<ClassificationResult[]>> | null =
+  null;
+let embeddingPromise: Promise<
+  (input: string, options?: { pooling?: string; normalize?: boolean }) => Promise<{
+    data: Float32Array | number[];
+  }>
+> | null = null;
+
+// Pipelines are created lazily so the server pays the model startup cost only when needed.
+async function getClassifier() {
+  if (!classifierPromise) {
+    classifierPromise = pipeline(
+      "text-classification",
+      "Xenova/distilbert-base-uncased-finetuned-sst-2-english"
+    ) as Promise<(input: string) => Promise<ClassificationResult[]>>;
+  }
+
+  return classifierPromise;
 }
 
+async function getEmbedder() {
+  if (!embeddingPromise) {
+    embeddingPromise = pipeline(
+      "feature-extraction",
+      "Xenova/all-MiniLM-L6-v2"
+    ) as Promise<
+      (input: string, options?: { pooling?: string; normalize?: boolean }) => Promise<{
+        data: Float32Array | number[];
+      }>
+    >;
+  }
+
+  return embeddingPromise;
+}
+
+// The analysis helper returns a compact UI-friendly string and a normalized numeric vector.
 export async function runTransformerAnalysis(text: string) {
+  const classifier = await getClassifier();
+  const embedder = await getEmbedder();
+
   const [classification, embedding] = await Promise.all([
-    hfPost(
-      "distilbert-base-uncased-finetuned-sst-2-english",
-      text
-    ),
-    hfPost(
-      "sentence-transformers/all-MiniLM-L6-v2",
-      text
-    ),
+    classifier(text),
+    embedder(text, { pooling: "mean", normalize: true }),
   ]);
 
-  const topResult = classification[0]?.[0] ?? classification[0];
-  const vector = (embedding[0] ?? embedding).map((v: number) =>
-    Number(v.toFixed(6))
+  const topResult = classification[0];
+  const vector = Array.from(embedding.data).map((value) =>
+    Number(value.toFixed(6))
   );
 
   return {
