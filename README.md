@@ -105,7 +105,7 @@ Create a `.env` file with the following values:
 ```env
 DATABASE_URL="your_neon_connection_string"
 JWT_SECRET="a_long_random_secret"
-GEMINI_API_KEY="optional_if_you_keep_using_it_elsewhere"
+HUGGINGFACE_TOKEN ="hf_xxxxxxxxxxxxxxxx"
 ```
 
 `JWT_SECRET` should be a long random string. In production it should never use a placeholder value.
