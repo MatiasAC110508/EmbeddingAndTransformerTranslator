@@ -1,11 +1,11 @@
 import { defineConfig } from '@prisma/config';
 import * as dotenv from 'dotenv';
 
+// Prisma reads the Neon connection string from the same environment file as the app.
 dotenv.config();
 
 export default defineConfig({
   datasource: {
-    // Aquí es donde Prisma 7 busca la conexión
-    url: process.env.DATABASE_URL,
+    url: process.env.DATABASE_URL, 
   },
 });

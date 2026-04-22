@@ -4,9 +4,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
+// The current schema only needs a single user model for authentication.
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
